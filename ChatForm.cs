@@ -104,19 +104,21 @@ namespace MultiChatServer {
 
             int totalSize = GetPacketTotalSize(obj.Buffer);
 
-            if (totalSize != obj.Buffer.Length)
-            {
+            int packetType = GetPacketType(obj.Buffer);
 
+            Console.WriteLine("DataReceived - totalSize: {0}", totalSize);
+            Console.WriteLine("DataReceived - packetType : {0}", packetType);
+
+            string str = string.Empty;
+            if(packetType == 1000)
+            {
+                PacketUserInfo user = new PacketUserInfo(1000);
+                user.ToType(obj.Buffer);
+                str = user.ToString();
             }
 
-            
+            string text = str;
 
-
-
-
-            PacketUserInfo user = new PacketUserInfo(1000);
-            user.ToType(obj.Buffer);
-            string text = user.ToString();
             Console.WriteLine(text);
             // 0x01 기준으로 짜른다.
             // tokens[0] - 보낸 사람 IP
@@ -128,20 +130,23 @@ namespace MultiChatServer {
             //// 텍스트박스에 추가해준다.
             //// 비동기식으로 작업하기 때문에 폼의 UI 스레드에서 작업을 해줘야 한다.
             //// 따라서 대리자를 통해 처리한다.
-            //AppendText(txtHistory, string.Format("[받음]{0}: {1}", ip, msg));
-            
-            //// for을 통해 "역순"으로 클라이언트에게 데이터를 보낸다.
-            //for (int i = connectedClients.Count - 1; i >= 0; i--) {
-            //    Socket socket = connectedClients[i];
-            //    if (socket != obj.WorkingSocket) {
-            //        try { socket.Send(obj.Buffer); }
-            //        catch {
-            //            // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
-            //            try { socket.Dispose(); } catch { }
-            //            connectedClients.RemoveAt(i);
-            //        }
-            //    }
-            //}
+            AppendText(txtHistory, text);  //string.Format("[받음]{0}: {1}", ip, msg));
+
+            // for을 통해 "역순"으로 클라이언트에게 데이터를 보낸다.
+            for (int i = connectedClients.Count - 1; i >= 0; i--)
+            {
+                Socket socket = connectedClients[i];
+                //if (socket != obj.WorkingSocket) //@TODO: 일단 같은 소켓이라도 보내도록 하자
+                //{
+                    try { socket.Send(obj.Buffer); }
+                    catch
+                    {
+                        // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
+                        try { socket.Dispose(); } catch { }
+                        connectedClients.RemoveAt(i);
+                    }
+                //}
+            }
 
             // 데이터를 받은 후엔 다시 버퍼를 비워주고 같은 방법으로 수신을 대기한다.
             obj.ClearBuffer();
@@ -211,9 +216,11 @@ namespace MultiChatServer {
         private int GetPacketType(byte[] buff)
         {
             int result = 0;
-            int offset = 2;
+            int offset = 2; //앞에 바이트길이 헤더 2바이트
 
+            result = Util.ByteArrToInt(buff, offset);
             
+            return result;
         }
     }
 }

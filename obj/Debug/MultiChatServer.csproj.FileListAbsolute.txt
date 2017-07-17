@@ -5,3 +5,11 @@ C:\Projects\MultiChatServer\bin\Debug\MultiChatServer.exe
 C:\Projects\MultiChatServer\bin\Debug\MultiChatServer.pdb
 C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.exe
 C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.pdb
+C:\Projects\unity-tcp-server\obj\Debug\MultiChatServer.csprojResolveAssemblyReference.cache
+C:\Projects\unity-tcp-server\obj\Debug\MultiChatServer.ChatForm.resources
+C:\Projects\unity-tcp-server\obj\Debug\MultiChatServer.Properties.Resources.resources
+C:\Projects\unity-tcp-server\obj\Debug\MultiChatServer.csproj.GenerateResource.Cache
+C:\Projects\unity-tcp-server\obj\Debug\MultiChatServer.exe
+C:\Projects\unity-tcp-server\obj\Debug\MultiChatServer.pdb
+C:\Projects\unity-tcp-server\bin\Debug\MultiChatServer.exe
+C:\Projects\unity-tcp-server\bin\Debug\MultiChatServer.pdb

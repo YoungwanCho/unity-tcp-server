@@ -104,7 +104,7 @@ namespace NetworkLibrary
 
         public override string ToString()
         {
-            return string.Format("totalSize : {0}, PacketType : {1}, EmptySize {2}", _totalSize.n, _packetType.n, _emptySpace.n);
+            return string.Format("totalSize : {0}, PacketType : {1}, EmptySize {2}{3}", _totalSize.n, _packetType.n, _emptySpace.n, Environment.NewLine);
         }
 
     }
