@@ -63,6 +63,8 @@ namespace MultiChatServer {
 
             // 비동기적으로 클라이언트의 연결 요청을 받는다.
             mainSock.BeginAccept(AcceptCallback, null);
+
+            AppendText(txtHistory, "서버 시작 됐다");
         }
 
         List<Socket> connectedClients = new List<Socket>();
