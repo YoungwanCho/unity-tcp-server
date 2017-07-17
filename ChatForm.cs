@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Text;
+using NetworkLibrary;
 
 namespace MultiChatServer {
     public partial class ChatForm : Form {
@@ -14,6 +15,7 @@ namespace MultiChatServer {
 
         public ChatForm() {
             InitializeComponent();
+
             mainSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
             _textAppender = new AppendTextDelegate(AppendText);
         }
@@ -98,38 +100,54 @@ namespace MultiChatServer {
             }
 
             // 텍스트로 변환한다.
-            string text = Encoding.UTF8.GetString(obj.Buffer);
+            //string text = Encoding.UTF8.GetString(obj.Buffer);
 
+            int totalSize = GetPacketTotalSize(obj.Buffer);
+
+            if (totalSize != obj.Buffer.Length)
+            {
+
+            }
+
+            
+
+
+
+
+            PacketUserInfo user = new PacketUserInfo(1000);
+            user.ToType(obj.Buffer);
+            string text = user.ToString();
+            Console.WriteLine(text);
             // 0x01 기준으로 짜른다.
             // tokens[0] - 보낸 사람 IP
             // tokens[1] - 보낸 메세지
-            string[] tokens = text.Split('\x01');
-            string ip = tokens[0];
-            string msg = tokens[1];
+            //string[] tokens = text.Split('\x01');
+            //string ip = tokens[0];
+            //string msg = tokens[1];
 
-            // 텍스트박스에 추가해준다.
-            // 비동기식으로 작업하기 때문에 폼의 UI 스레드에서 작업을 해줘야 한다.
-            // 따라서 대리자를 통해 처리한다.
-            AppendText(txtHistory, string.Format("[받음]{0}: {1}", ip, msg));
+            //// 텍스트박스에 추가해준다.
+            //// 비동기식으로 작업하기 때문에 폼의 UI 스레드에서 작업을 해줘야 한다.
+            //// 따라서 대리자를 통해 처리한다.
+            //AppendText(txtHistory, string.Format("[받음]{0}: {1}", ip, msg));
             
-            // for을 통해 "역순"으로 클라이언트에게 데이터를 보낸다.
-            for (int i = connectedClients.Count - 1; i >= 0; i--) {
-                Socket socket = connectedClients[i];
-                if (socket != obj.WorkingSocket) {
-                    try { socket.Send(obj.Buffer); }
-                    catch {
-                        // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
-                        try { socket.Dispose(); } catch { }
-                        connectedClients.RemoveAt(i);
-                    }
-                }
-            }
+            //// for을 통해 "역순"으로 클라이언트에게 데이터를 보낸다.
+            //for (int i = connectedClients.Count - 1; i >= 0; i--) {
+            //    Socket socket = connectedClients[i];
+            //    if (socket != obj.WorkingSocket) {
+            //        try { socket.Send(obj.Buffer); }
+            //        catch {
+            //            // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
+            //            try { socket.Dispose(); } catch { }
+            //            connectedClients.RemoveAt(i);
+            //        }
+            //    }
+            //}
 
             // 데이터를 받은 후엔 다시 버퍼를 비워주고 같은 방법으로 수신을 대기한다.
             obj.ClearBuffer();
 
             // 수신 대기
-            obj.WorkingSocket.BeginReceive(obj.Buffer, 0, 4096, 0, DataReceived, obj);
+            obj.WorkingSocket.BeginReceive(obj.Buffer, 0, obj.Buffer.Length, 0, DataReceived, obj);
         }
 
         void OnSendData(object sender, EventArgs e) {
@@ -163,6 +181,39 @@ namespace MultiChatServer {
             // 전송 완료 후 텍스트박스에 추가하고, 원래의 내용은 지운다.
             AppendText(txtHistory, string.Format("[보냄]{0}: {1}", thisAddress.ToString(), tts));
             txtTTS.Clear();
+        }
+
+
+        private bool IsGetPacketSize(byte[] buff)
+        {
+            if (buff.Length < 2)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private int GetPacketTotalSize(byte[] buff)
+        {
+            int result = 0;
+
+            if (IsGetPacketSize(buff))
+            {
+                byte[] size = new byte[2];
+                size[0] = buff[0];
+                size[1] = buff[1];
+                result = (int)Util.ByteArrToShort(size, 0);
+            }
+            return result;
+        }
+
+        private int GetPacketType(byte[] buff)
+        {
+            int result = 0;
+            int offset = 2;
+
+            
         }
     }
 }

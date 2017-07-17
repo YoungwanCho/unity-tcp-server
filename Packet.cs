@@ -7,21 +7,24 @@ namespace NetworkLibrary
 {
     public class Packet : IDisposable
     {
-        public PInteger Sup { get { return this._sup; } }
-        public PInteger Sub { get { return this._sub; } }
+        public PInteger PacketType { get { return this._packetType; } }
+        public PInteger EmptySpace { get { return this._emptySpace; } }
+        public PShort TotalSize { get { return this._totalSize; } set { this._totalSize = value; } }
 
-        protected PInteger _sup = null;
-        protected PInteger _sub = null;
+        protected PShort _totalSize = null;
+        protected PInteger _packetType = null;
+        protected PInteger _emptySpace = null;
 
         protected PrimitiveType[] _field;
 
         private bool disposed = false;
 
-        public Packet(int sup, int sub, int fieldCount)
+        public Packet(int pakcetType, int fieldCount)
         {
-            this._sup = new PInteger(sup);
-            this._sub = new PInteger(sub);
+            this._packetType = new PInteger(pakcetType);
+            this._emptySpace = new PInteger(0);
             this._field = new PrimitiveType[fieldCount];
+            this._totalSize = new PShort(0);
         }
 
         ~Packet()
@@ -51,10 +54,11 @@ namespace NetworkLibrary
         {
             byte[] buff = new byte[this.GetSize()];
             int offset = 0;
-            _sup.ToBytes(buff, ref offset);
-            _sub.ToBytes(buff, ref offset);
+            _totalSize.ToBytes(buff, ref offset);
+            _packetType.ToBytes(buff, ref offset);
+            _emptySpace.ToBytes(buff, ref offset);
 
-            for(int i=0; i<_field.Length; i++)
+            for (int i = 0; i < _field.Length; i++)
             {
                 _field[i].ToBytes(buff, ref offset);
             }
@@ -65,14 +69,18 @@ namespace NetworkLibrary
         public void ToType(byte[] buff)
         {
             int offset = 0;
-            _sup = new PInteger(Util.ByteArrToInt(buff, offset));
-            _sub = new PInteger(Util.ByteArrToInt(buff, offset += 4));
+            _totalSize  = new PShort(Util.ByteArrToShort(buff, offset));
+            _packetType = new PInteger(Util.ByteArrToInt(buff, offset += 2));
+            _emptySpace = new PInteger(Util.ByteArrToInt(buff, offset += 4));
+
             int pointer = offset += 4;
+
             if (_field != null)
             {
                 for (int i = 0; i < _field.Length; i++)
                 {
                     _field[i].ToType(buff, ref pointer);
+                    Console.WriteLine(string.Format("_field[{0}] : {1}", i, _field[i].ToString()));
                 }
             }
         }
@@ -81,12 +89,14 @@ namespace NetworkLibrary
         {
             int result = 0;
 
-            result += _sup.GetSize();
-            result += _sub.GetSize();
+            result += 2;//_totalSize.GetSize();
+            result += _packetType.GetSize();
+            result += _emptySpace.GetSize();
 
-            for(int i=0; i<_field.Length; i++)
+            for (int i = 0; i < _field.Length; i++)
             {
                 result += _field[i].GetSize();
+                //UnityEngine.Debug.Log(_field[i].GetSize());
             }
 
             return result;
@@ -94,7 +104,7 @@ namespace NetworkLibrary
 
         public override string ToString()
         {
-            return "";
+            return string.Format("totalSize : {0}, PacketType : {1}, EmptySize {2}", _totalSize.n, _packetType.n, _emptySpace.n);
         }
 
     }
