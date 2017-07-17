@@ -1,0 +1,3 @@
+[submodule "NetworkLibrary/Shared"]
+	path = NetworkLibrary/Shared
+	url = ssh://git@git.2mbgame.com:6722/youngwan/unity-tcp-share.git
