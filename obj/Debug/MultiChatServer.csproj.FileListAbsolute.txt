@@ -1,0 +1,7 @@
+C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.ChatForm.resources
+C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.Properties.Resources.resources
+C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.csproj.GenerateResource.Cache
+C:\Projects\MultiChatServer\bin\Debug\MultiChatServer.exe
+C:\Projects\MultiChatServer\bin\Debug\MultiChatServer.pdb
+C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.exe
+C:\Projects\MultiChatServer\obj\Debug\MultiChatServer.pdb
