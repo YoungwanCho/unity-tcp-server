@@ -13,6 +13,9 @@ namespace MultiChatServer {
         Socket mainSock;
         IPAddress thisAddress;
 
+        private int _receiveSize = 0;
+        private int _packetSize = 0;
+
         public ChatForm() {
             InitializeComponent();
 
@@ -24,7 +27,7 @@ namespace MultiChatServer {
             if (ctrl.InvokeRequired) ctrl.Invoke(_textAppender, ctrl, s);
             else {
                 string source = ctrl.Text;
-                ctrl.Text = source + Environment.NewLine + s;
+                ctrl.Text = s;//source + Environment.NewLine + s;
             }
         }
 
@@ -75,7 +78,7 @@ namespace MultiChatServer {
             // 또 다른 클라이언트의 연결을 대기한다.
             mainSock.BeginAccept(AcceptCallback, null);
 
-            AsyncObject obj = new AsyncObject(4096);
+            AsyncObject obj = new AsyncObject(20);
             obj.WorkingSocket = client;
 
             // 연결된 클라이언트 리스트에 추가해준다.
@@ -85,53 +88,136 @@ namespace MultiChatServer {
             AppendText(txtHistory, string.Format("클라이언트 (@ {0})가 연결되었습니다.", client.RemoteEndPoint));
 
             // 클라이언트의 데이터를 받는다.
-            client.BeginReceive(obj.Buffer, 0, 4096, 0, DataReceived, obj);
+
+            while (true)
+            {
+                if (client.BeginReceive(obj.Buffer, 0, 20, 0, DataReceived, obj).IsCompleted)
+                {
+                    
+                }
+            }
+            //bool result = client.BeginReceive(obj.Buffer, 0, 20, 0, DataReceived, obj).IsCompleted;
+
+            //Console.Write(result);
+
+
         }
 
-        void DataReceived(IAsyncResult ar) {
-            // BeginReceive에서 추가적으로 넘어온 데이터를 AsyncObject 형식으로 변환한다.
+        void DataReceived(IAsyncResult ar)
+        {
             AsyncObject obj = (AsyncObject)ar.AsyncState;
 
-            // 데이터 수신을 끝낸다.
-            int received = obj.WorkingSocket.EndReceive(ar);
+            
 
-            // 받은 데이터가 없으면(연결끊어짐) 끝낸다.
-            if (received <= 0) {
-                obj.WorkingSocket.Close();
-                return;
-            }
-
-            // 텍스트로 변환한다.
-            //string text = Encoding.UTF8.GetString(obj.Buffer);
-
-            int totalSize = GetPacketTotalSize(obj.Buffer);
-
-            int packetType = GetPacketType(obj.Buffer);
-
-            Console.WriteLine("DataReceived - totalSize: {0}", totalSize);
-            Console.WriteLine("DataReceived - packetType : {0}", packetType);
-
-            string str = string.Empty;
-            if(packetType == 1000)
+            //byte[] buff = obj.Buffer;
+            if(_packetSize == 0) // 아직 받야아할 패킷 사이즈가 판단이 안된 경우
             {
-                PacketUserInfo user = new PacketUserInfo(1000);
-                user.ToType(obj.Buffer);
-                str = user.ToString();
+                try
+                {
+                    int len = obj.WorkingSocket.EndReceive(ar);
+
+
+
+                    if(len == 0)
+                    {
+                        obj.WorkingSocket.Close();
+                        return;
+                    }
+                    else if(len != 53)
+                    {
+                        Console.Write(len);
+                    }
+                    _receiveSize += len;
+                }
+                catch(Exception ex)
+                {
+                    
+                }
+                if (_receiveSize == 0)
+                {
+                    obj.WorkingSocket.Close();
+                    return;
+                }
+                else if (_receiveSize < 2)
+                {
+                    try
+                    {
+                        //obj.WorkingSocket.BeginReceive(obj.Buffer, _receiveSize, (obj.Buffer.Length - _receiveSize), SocketFlags.None, new AsyncCallback(DataReceived), obj);
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                }
+                else
+                {
+                    _packetSize = (int)Util.ByteArrToShort(obj.Buffer, 0); // 패킷 사이즈를 구하는 코드
+                    if (_packetSize <= 0)
+                    {
+                        obj.WorkingSocket.Close();
+                        return;
+                    }
+
+                    if(obj.Buffer.Length >= _packetSize) // 이미 한번에 다 받았다면
+                    {
+                        ProcessPacket(obj);
+                    }
+                    else
+                    {
+                        _receiveSize = 0;
+                        AsyncObject newObj = new AsyncObject(_packetSize);
+                        newObj.WorkingSocket = obj.WorkingSocket;
+                        try
+                        {
+                            //newObj.WorkingSocket.BeginReceive(newObj.Buffer, 0, _packetSize, SocketFlags.None, new AsyncCallback(DataReceived), newObj);
+                        }
+                        catch (Exception ex)
+                        {
+
+                        }
+                    }
+                }
             }
+            else
+            {
+                try
+                {
+                    int len = obj.WorkingSocket.EndReceive(ar);
+                    if(len == 0)
+                    {
+                        obj.WorkingSocket.Close();
+                        return;
+                    }
+                    _receiveSize += len;
+                }
+                catch(Exception ex)
+                {
 
-            string text = str;
+                }
+                if (_receiveSize < _packetSize)
+                {
+                    try
+                    {
+                        //obj.WorkingSocket.BeginReceive(obj.Buffer, _receiveSize, (obj.Buffer.Length - _receiveSize), SocketFlags.None, new AsyncCallback(DataReceived), obj);
+                    }
+                    catch(Exception ex)
+                    {
 
-            Console.WriteLine(text);
-            // 0x01 기준으로 짜른다.
-            // tokens[0] - 보낸 사람 IP
-            // tokens[1] - 보낸 메세지
-            //string[] tokens = text.Split('\x01');
-            //string ip = tokens[0];
-            //string msg = tokens[1];
+                    }
+                }
+                else
+                {
+                    ProcessPacket(obj);
+                }
+            }
+        }
 
-            //// 텍스트박스에 추가해준다.
-            //// 비동기식으로 작업하기 때문에 폼의 UI 스레드에서 작업을 해줘야 한다.
-            //// 따라서 대리자를 통해 처리한다.
+        private void ProcessPacket(AsyncObject obj)
+        {
+            PacketUserInfo user = new PacketUserInfo(1000);
+            user.ToType(obj.Buffer);
+            string text = user.ToString();
+
             AppendText(txtHistory, text);  //string.Format("[받음]{0}: {1}", ip, msg));
 
             // for을 통해 "역순"으로 클라이언트에게 데이터를 보낸다.
@@ -140,13 +226,13 @@ namespace MultiChatServer {
                 Socket socket = connectedClients[i];
                 //if (socket != obj.WorkingSocket) //@TODO: 일단 같은 소켓이라도 보내도록 하자
                 //{
-                    try { socket.Send(obj.Buffer); }
-                    catch
-                    {
-                        // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
-                        try { socket.Dispose(); } catch { }
-                        connectedClients.RemoveAt(i);
-                    }
+                try { socket.Send(obj.Buffer); }
+                catch
+                {
+                    // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
+                    try { socket.Dispose(); } catch { }
+                    connectedClients.RemoveAt(i);
+                }
                 //}
             }
 
@@ -155,6 +241,7 @@ namespace MultiChatServer {
 
             // 수신 대기
             obj.WorkingSocket.BeginReceive(obj.Buffer, 0, obj.Buffer.Length, 0, DataReceived, obj);
+            _packetSize = 0;
         }
 
         void OnSendData(object sender, EventArgs e) {
