@@ -6,8 +6,10 @@ using System.Collections.Generic;
 using System.Text;
 using NetworkLibrary;
 
-namespace MultiChatServer {
-    public partial class ChatForm : Form {
+namespace MultiChatServer
+{
+    public partial class ChatForm : Form
+    {
         delegate void AppendTextDelegate(Control ctrl, string s);
         AppendTextDelegate _textAppender;
         Socket mainSock;
@@ -16,30 +18,41 @@ namespace MultiChatServer {
         private int _receiveSize = 0;
         private int _packetSize = 0;
 
-        public ChatForm() {
+        private List<byte> _byteList = new List<byte>();
+        private Queue<Packet> _packetQueue = new Queue<Packet>();
+
+
+        public ChatForm()
+        {
             InitializeComponent();
 
             mainSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
             _textAppender = new AppendTextDelegate(AppendText);
+            _byteList.Clear();
         }
 
-        void AppendText(Control ctrl, string s) {
+        void AppendText(Control ctrl, string s)
+        {
             if (ctrl.InvokeRequired) ctrl.Invoke(_textAppender, ctrl, s);
-            else {
+            else
+            {
                 string source = ctrl.Text;
                 ctrl.Text = s;//source + Environment.NewLine + s;
             }
         }
 
-        void OnFormLoaded(object sender, EventArgs e) {
+        void OnFormLoaded(object sender, EventArgs e)
+        {
             IPHostEntry he = Dns.GetHostEntry(Dns.GetHostName());
 
             // 처음으로 발견되는 ipv4 주소를 사용한다.
-            foreach (IPAddress addr in he.AddressList) {
-                if (addr.AddressFamily == AddressFamily.InterNetwork) {
+            foreach (IPAddress addr in he.AddressList)
+            {
+                if (addr.AddressFamily == AddressFamily.InterNetwork)
+                {
                     thisAddress = addr;
                     break;
-                }    
+                }
             }
 
             // 주소가 없다면..
@@ -49,9 +62,11 @@ namespace MultiChatServer {
 
             txtAddress.Text = thisAddress.ToString();
         }
-        void BeginStartServer(object sender, EventArgs e) {
+        void BeginStartServer(object sender, EventArgs e)
+        {
             int port;
-            if (!int.TryParse(txtPort.Text, out port)) {
+            if (!int.TryParse(txtPort.Text, out port))
+            {
                 MsgBoxHelper.Error("포트 번호가 잘못 입력되었거나 입력되지 않았습니다.");
                 txtPort.Focus();
                 txtPort.SelectAll();
@@ -71,14 +86,15 @@ namespace MultiChatServer {
         }
 
         List<Socket> connectedClients = new List<Socket>();
-        void AcceptCallback(IAsyncResult ar) {
+        void AcceptCallback(IAsyncResult ar)
+        {
             // 클라이언트의 연결 요청을 수락한다.
             Socket client = mainSock.EndAccept(ar);
 
             // 또 다른 클라이언트의 연결을 대기한다.
             mainSock.BeginAccept(AcceptCallback, null);
 
-            AsyncObject obj = new AsyncObject(20);
+            AsyncObject obj = new AsyncObject(1024);
             obj.WorkingSocket = client;
 
             // 연결된 클라이언트 리스트에 추가해준다.
@@ -89,134 +105,101 @@ namespace MultiChatServer {
 
             // 클라이언트의 데이터를 받는다.
 
-            while (true)
-            {
-                if (client.BeginReceive(obj.Buffer, 0, 20, 0, DataReceived, obj).IsCompleted)
-                {
-                    
-                }
-            }
-            //bool result = client.BeginReceive(obj.Buffer, 0, 20, 0, DataReceived, obj).IsCompleted;
 
-            //Console.Write(result);
-
+            client.BeginReceive(obj.Buffer, 0, 1024, 0, StreamReceive, obj);
 
         }
 
-        void DataReceived(IAsyncResult ar)
+        private void StreamReceive(IAsyncResult ar)
         {
             AsyncObject obj = (AsyncObject)ar.AsyncState;
 
-            
-
-            //byte[] buff = obj.Buffer;
-            if(_packetSize == 0) // 아직 받야아할 패킷 사이즈가 판단이 안된 경우
+            try
             {
-                try
+                int len = obj.WorkingSocket.EndReceive(ar);
+
+                for (int i = 0; i < len; i++)
                 {
-                    int len = obj.WorkingSocket.EndReceive(ar);
-
-
-
-                    if(len == 0)
-                    {
-                        obj.WorkingSocket.Close();
-                        return;
-                    }
-                    else if(len != 53)
-                    {
-                        Console.Write(len);
-                    }
-                    _receiveSize += len;
+                    _byteList.Add(obj.Buffer[i]);
                 }
-                catch(Exception ex)
-                {
-                    
-                }
-                if (_receiveSize == 0)
-                {
-                    obj.WorkingSocket.Close();
-                    return;
-                }
-                else if (_receiveSize < 2)
-                {
-                    try
-                    {
-                        //obj.WorkingSocket.BeginReceive(obj.Buffer, _receiveSize, (obj.Buffer.Length - _receiveSize), SocketFlags.None, new AsyncCallback(DataReceived), obj);
-                    }
-                    catch (Exception ex)
-                    {
+                obj.ClearBuffer();
+                obj.WorkingSocket.BeginReceive(obj.Buffer, 0, obj.BufferSize, 0, StreamReceive, obj);
+            }
+            catch (Exception ex)
+            {
 
-                    }
-                }
-                else
-                {
-                    _packetSize = (int)Util.ByteArrToShort(obj.Buffer, 0); // 패킷 사이즈를 구하는 코드
-                    if (_packetSize <= 0)
-                    {
-                        obj.WorkingSocket.Close();
-                        return;
-                    }
+            }
 
-                    if(obj.Buffer.Length >= _packetSize) // 이미 한번에 다 받았다면
-                    {
-                        ProcessPacket(obj);
-                    }
-                    else
-                    {
-                        _receiveSize = 0;
-                        AsyncObject newObj = new AsyncObject(_packetSize);
-                        newObj.WorkingSocket = obj.WorkingSocket;
-                        try
-                        {
-                            //newObj.WorkingSocket.BeginReceive(newObj.Buffer, 0, _packetSize, SocketFlags.None, new AsyncCallback(DataReceived), newObj);
-                        }
-                        catch (Exception ex)
-                        {
+            ProcessStreamByte();
+        }
 
-                        }
-                    }
-                }
+        private void ProcessStreamByte()
+        {
+            if (_byteList.Count < 2) // 패킷사이즈도 알아 낼수 없는 경우
+            {
+                return;
+            }
+
+            if (_packetSize == 0)
+            {
+                byte[] sizeByte = new byte[2];
+                sizeByte[0] = _byteList[0];
+                sizeByte[1] = _byteList[1];
+                _packetSize = Util.ByteArrToShort(sizeByte, 0);
+            }
+
+            if (_byteList.Count < _packetSize) // 필요한 만큼 다 못 받은 경우
+            {
+                return;
             }
             else
             {
-                try
-                {
-                    int len = obj.WorkingSocket.EndReceive(ar);
-                    if(len == 0)
-                    {
-                        obj.WorkingSocket.Close();
-                        return;
-                    }
-                    _receiveSize += len;
-                }
-                catch(Exception ex)
-                {
+                byte[] packetByte = new byte[_packetSize];
 
-                }
-                if (_receiveSize < _packetSize)
+                for (int i = 0; i < _packetSize; i++)
                 {
-                    try
-                    {
-                        //obj.WorkingSocket.BeginReceive(obj.Buffer, _receiveSize, (obj.Buffer.Length - _receiveSize), SocketFlags.None, new AsyncCallback(DataReceived), obj);
-                    }
-                    catch(Exception ex)
-                    {
+                    packetByte[i] = _byteList[i];
+                }
 
-                    }
-                }
-                else
+                _byteList.RemoveRange(0, _packetSize);
+                int packetType = Util.ByteArrToInt(packetByte, 2);
+
+                if (packetType == 1000)
                 {
-                    ProcessPacket(obj);
+                    PacketUserInfo userInfo = new PacketUserInfo(packetType);
+                    userInfo.ToType(packetByte);
+                    _packetQueue.Enqueue(userInfo);
+                }
+                _packetSize = 0;
+            }
+            ProcessPacket();
+        }
+
+        private void ProcessPacket()
+        {
+            if(_packetQueue.Count <= 0)
+            {
+                return;
+            }
+
+            Packet packet = _packetQueue.Dequeue();
+
+            AsyncObject obj = new AsyncObject(1024);
+            
+            if(packet.PacketType.n == 1000)
+            {
+                PacketUserInfo userInfo = packet as PacketUserInfo;
+
+                if(userInfo != null)
+                {
+                    ProcessSendMessage(userInfo);
                 }
             }
         }
 
-        private void ProcessPacket(AsyncObject obj)
+        private void ProcessSendMessage(Packet packet)
         {
-            PacketUserInfo user = new PacketUserInfo(1000);
-            user.ToType(obj.Buffer);
-            string text = user.ToString();
+            string text = packet.ToString();
 
             AppendText(txtHistory, text);  //string.Format("[받음]{0}: {1}", ip, msg));
 
@@ -226,7 +209,10 @@ namespace MultiChatServer {
                 Socket socket = connectedClients[i];
                 //if (socket != obj.WorkingSocket) //@TODO: 일단 같은 소켓이라도 보내도록 하자
                 //{
-                try { socket.Send(obj.Buffer); }
+                try
+                {
+                    socket.Send(packet.ToBytes());
+                }
                 catch
                 {
                     // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
@@ -235,37 +221,36 @@ namespace MultiChatServer {
                 }
                 //}
             }
-
-            // 데이터를 받은 후엔 다시 버퍼를 비워주고 같은 방법으로 수신을 대기한다.
-            obj.ClearBuffer();
-
-            // 수신 대기
-            obj.WorkingSocket.BeginReceive(obj.Buffer, 0, obj.Buffer.Length, 0, DataReceived, obj);
-            _packetSize = 0;
         }
 
-        void OnSendData(object sender, EventArgs e) {
+        void OnSendData(object sender, EventArgs e)
+        {
             // 서버가 대기중인지 확인한다.
-            if (!mainSock.IsBound) {
+            if (!mainSock.IsBound)
+            {
                 MsgBoxHelper.Warn("서버가 실행되고 있지 않습니다!");
                 return;
             }
-            
+
             // 보낼 텍스트
             string tts = txtTTS.Text.Trim();
-            if (string.IsNullOrEmpty(tts)) {
+            if (string.IsNullOrEmpty(tts))
+            {
                 MsgBoxHelper.Warn("텍스트가 입력되지 않았습니다!");
                 txtTTS.Focus();
                 return;
             }
-            
+
             // 문자열을 utf8 형식의 바이트로 변환한다.
             byte[] bDts = Encoding.UTF8.GetBytes(thisAddress.ToString() + '\x01' + tts);
 
             // 연결된 모든 클라이언트에게 전송한다.
-            for (int i = connectedClients.Count - 1; i >= 0; i--) {
+            for (int i = connectedClients.Count - 1; i >= 0; i--)
+            {
                 Socket socket = connectedClients[i];
-                try { socket.Send(bDts); } catch {
+                try { socket.Send(bDts); }
+                catch
+                {
                     // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
                     try { socket.Dispose(); } catch { }
                     connectedClients.RemoveAt(i);
@@ -308,7 +293,7 @@ namespace MultiChatServer {
             int offset = 2; //앞에 바이트길이 헤더 2바이트
 
             result = Util.ByteArrToInt(buff, offset);
-            
+
             return result;
         }
     }
