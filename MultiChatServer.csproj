@@ -53,8 +53,10 @@
     <Compile Include="MsgBoxHelper.cs" />
     <Compile Include="NetworkLibrary\Shared\AsyncObject.cs" />
     <Compile Include="NetworkLibrary\Shared\Packet.cs" />
+    <Compile Include="NetworkLibrary\Shared\PacketRoundInfo.cs" />
     <Compile Include="NetworkLibrary\Shared\PacketType.cs" />
     <Compile Include="NetworkLibrary\Shared\PacketUserInfo.cs" />
+    <Compile Include="NetworkLibrary\Shared\PrimitiveType.cs" />
     <Compile Include="NetworkLibrary\Shared\Util.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
