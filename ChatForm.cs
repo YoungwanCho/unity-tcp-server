@@ -170,6 +170,13 @@ namespace MultiChatServer
                     userInfo.ToType(packetByte);
                     _packetQueue.Enqueue(userInfo);
                 }
+                else if (packetType == (int)PacketType.ROUND_INFO)
+                {
+                    PacketRoundInfo roundInfo = new PacketRoundInfo(packetType);
+                    roundInfo.ToType(packetByte);
+                    _packetQueue.Enqueue(roundInfo);
+                }
+
                 _packetSize = 0;
             }
             ProcessPacket();
@@ -186,13 +193,22 @@ namespace MultiChatServer
 
             AsyncObject obj = new AsyncObject(1024);
             
-            if(packet.PacketType.n == 1000)
+            if(packet.PacketType.n == (int)PacketType.USER_INFO)
             {
                 PacketUserInfo userInfo = packet as PacketUserInfo;
 
                 if(userInfo != null)
                 {
                     ProcessSendMessage(userInfo);
+                }
+            }
+            else if(packet.PacketType.n == (int)PacketType.ROUND_INFO)
+            {
+                PacketRoundInfo roundInfo = packet as PacketRoundInfo;
+
+                if(roundInfo != null)
+                {
+                    ProcessSendMessage(roundInfo);
                 }
             }
         }
