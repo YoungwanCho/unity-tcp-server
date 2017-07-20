@@ -164,7 +164,7 @@ namespace MultiChatServer
                 _byteList.RemoveRange(0, _packetSize);
                 int packetType = Util.ByteArrToInt(packetByte, 2);
 
-                if (packetType == 1000)
+                if (packetType == (int)PacketType.USER_INFO)
                 {
                     PacketUserInfo userInfo = new PacketUserInfo(packetType);
                     userInfo.ToType(packetByte);
