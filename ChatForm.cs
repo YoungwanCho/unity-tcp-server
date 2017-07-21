@@ -23,6 +23,7 @@ namespace MultiChatServer
         private IPAddress _thisAddress;
 
         private int _packetSize = 0;
+        private object _lock = new object();
 
         public ChatForm()
         {
@@ -117,25 +118,28 @@ namespace MultiChatServer
 
         private void StreamReceive(IAsyncResult ar)
         {
-            AsyncObject obj = (AsyncObject)ar.AsyncState;
-
-            try
+            lock (_lock)
             {
-                int len = obj.WorkingSocket.EndReceive(ar);
+                AsyncObject obj = (AsyncObject)ar.AsyncState;
 
-                for (int i = 0; i < len; i++)
+                try
                 {
-                    _byteList.Add(obj.Buffer[i]);
+                    int len = obj.WorkingSocket.EndReceive(ar);
+
+                    for (int i = 0; i < len; i++)
+                    {
+                        _byteList.Add(obj.Buffer[i]);
+                    }
+                    obj.ClearBuffer();
+                    obj.WorkingSocket.BeginReceive(obj.Buffer, 0, obj.BufferSize, 0, StreamReceive, obj);
                 }
-                obj.ClearBuffer();
-                obj.WorkingSocket.BeginReceive(obj.Buffer, 0, obj.BufferSize, 0, StreamReceive, obj);
-            }
-            catch (Exception ex)
-            {
+                catch (Exception ex)
+                {
 
-            }
+                }
 
-            ProcessStreamByte();
+                ProcessStreamByte();
+            }
         }
 
         private void ProcessStreamByte()
@@ -189,7 +193,7 @@ namespace MultiChatServer
 
         private void ProcessPacket()
         {
-            if(_packetQueue.Count <= 0)
+            if (_packetQueue.Count <= 0)
             {
                 return;
             }
@@ -197,21 +201,21 @@ namespace MultiChatServer
             Packet packet = _packetQueue.Dequeue();
 
             AsyncObject obj = new AsyncObject(BufferSize);
-            
-            if(packet.PacketType.n == (int)PacketType.USER_INFO)
+
+            if (packet.PacketType.n == (int)PacketType.USER_INFO)
             {
                 PacketUserInfo userInfo = packet as PacketUserInfo;
 
-                if(userInfo != null)
+                if (userInfo != null)
                 {
                     ProcessSendMessage(userInfo);
                 }
             }
-            else if(packet.PacketType.n == (int)PacketType.ROUND_INFO)
+            else if (packet.PacketType.n == (int)PacketType.ROUND_INFO)
             {
                 PacketRoundInfo roundInfo = packet as PacketRoundInfo;
 
-                if(roundInfo != null)
+                if (roundInfo != null)
                 {
                     ProcessSendMessage(roundInfo);
                 }
@@ -230,23 +234,23 @@ namespace MultiChatServer
                 Socket socket = _connectedClients[i];
                 //if (socket != obj.WorkingSocket) //@TODO: 일단 같은 소켓이라도 보내도록 하자
                 //{
+                try
+                {
+                    socket.Send(packet.ToBytes());
+                }
+                catch
+                {
+                    // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
                     try
                     {
-                        socket.Send(packet.ToBytes());
+                        socket.Dispose();
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // 오류 발생하면 전송 취소하고 리스트에서 삭제한다.
-                        try
-                        {
-                            socket.Dispose();
-                        }
-                        catch(Exception ex)
-                        {
 
-                        }
-                        _connectedClients.RemoveAt(i);
                     }
+                    _connectedClients.RemoveAt(i);
+                }
                 //}
             }
         }
